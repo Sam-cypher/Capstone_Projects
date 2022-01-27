@@ -1,0 +1,194 @@
+---
+title: "Cyclistic"
+author: "SAMPSON OKYERE"
+date: "12/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Cyclistic
+
+Install needed packages
+```{r}
+  install.packages("tidyverse")
+  install.packages("lubridate")
+  library(tidyverse)
+  library(lubridate)
+```
+
+Import data
+```{r}
+  setwd("~/Data_Cyclistic_Case_Study_1")
+  trip_data_2020_12 <- read.csv("202012-divvy-tripdata.csv")
+  trip_data_2021_01 <- read.csv("202101-divvy-tripdata.csv")
+  trip_data_2021_02 <- read.csv("202102-divvy-tripdata.csv")
+  trip_data_2021_03 <- read.csv("202103-divvy-tripdata.csv")
+  trip_data_2021_04 <- read.csv("202104-divvy-tripdata.csv")
+  trip_data_2021_05 <- read.csv("202105-divvy-tripdata.csv")
+  trip_data_2021_06 <- read.csv("202106-divvy-tripdata.csv")
+  trip_data_2021_07 <- read.csv("202107-divvy-tripdata.csv")
+  trip_data_2021_08 <- read.csv("202108-divvy-tripdata.csv")
+  trip_data_2021_09 <- read.csv("202109-divvy-tripdata.csv")
+  trip_data_2021_10 <- read.csv("202110-divvy-tripdata.csv")
+  trip_data_2021_11 <- read.csv("202111-divvy-tripdata.csv")
+```
+Check column names to ensure we can join all the data
+```{r}
+  colnames(trip_data_2020_12)
+  colnames(trip_data_2021_01)
+  colnames(trip_data_2021_02)
+  colnames(trip_data_2021_03)
+  colnames(trip_data_2021_04)
+  colnames(trip_data_2021_05)
+  colnames(trip_data_2021_06)
+  colnames(trip_data_2021_07)
+  colnames(trip_data_2021_08)
+  colnames(trip_data_2021_09)
+  colnames(trip_data_2021_10)
+  colnames(trip_data_2021_11)
+```
+Combine data into one set.
+```{r}
+all_trips <- rbind(trip_data_2020_12, trip_data_2021_01, trip_data_2021_02, trip_data_2021_03, trip_data_2021_04, trip_data_2021_05, trip_data_2021_06, trip_data_2021_07, trip_data_2021_08, trip_data_2021_09, trip_data_2021_10, trip_data_2021_11)
+```
+
+Inspect data to find cleaning opportunities
+```{r}
+colnames(all_trips)
+```
+```{r}
+nrow(all_trips)
+```
+```{r}
+dim(all_trips)
+```
+```{r}
+head(all_trips)
+```
+```{r}
+tail(all_trips)
+```
+```{r}
+str(all_trips)
+```
+```{r}
+summary(all_trips)
+```
+```{r}
+table(all_trips$start_station_name)
+```
+```{r}
+table(all_trips$rideable_type)
+```
+
+Note stations "DIVVY CASSETTE REPAIR MOBILE STATION" and "HUBBARD ST BIKE CHECKING (LBS-WH-TEST)"
+
+Add columns for date, month, day and year of each ride
+```{r}
+all_trips$date <- as.Date(all_trips$started_at)
+all_trips$month <- format(as.Date(all_trips$date), "%m")
+all_trips$day <- format(as.Date(all_trips$date), "%d")
+all_trips$year <- format(as.Date(all_trips$date), "%Y")
+all_trips$day_of_week <- format(as.Date(all_trips$date), "%A")
+```
+Add ride_length calculation in seconds and convert to number
+```{r}
+all_trips$ride_length <- difftime(all_trips$ended_at,all_trips$started_at)
+all_trips$ride_length <- as.numeric(as.character(all_trips$ride_length))
+```
+Check for anomalies in ride_length data
+```{r}
+summary(all_trips$ride_length)
+```
+
+Remove bad data and put into v2 dataframe (less than 60 seconds, test or repair station, docked bikes)
+```{r}
+all_trips_v2 <- all_trips[!(all_trips$start_station_name == "DIVVY CASSETTE REPAIR MOBILE STATION" | all_trips$start_station_name == "HUBBARD ST BIKE CHECKING (LBS-WH-TEST)" | all_trips$rideable_type == "docked_bike" | all_trips$ride_length < 60),]
+```
+Double check for anomalies
+```{r}
+summary(all_trips_v2$ride_length)
+```
+Compare members vs casuals
+```{r}
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = mean)
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = median)
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = max)
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = min)
+```
+Correct order for day of the week
+```{r}
+all_trips_v2$day_of_week <- ordered(all_trips_v2$day_of_week, levels=c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+```
+
+Average ride time for members vs casuals
+```{r}
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual + all_trips_v2$day_of_week, FUN = mean)
+```
+Rides by member vs casual and weekday
+```{r}
+all_trips_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarise(number_of_rides = n()	 
+  ,average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday)
+```
+Show number of rides by rider type
+```{r}
+all_trips_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge")
+```
+Show average duration
+```{r}
+all_trips_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge")
+```
+Find only rides longer than one day per rider type
+```{r}
+long_trips <- all_trips_v2[(all_trips_v2$ride_length >= 86400),]
+```
+
+Show trips more than one day per rider type
+```{r}
+long_trips %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge")
+```
+
+
+Export summary files for further analysis
+```{r}
+counts <- aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual + all_trips_v2$day_of_week, FUN = mean)
+write.csv(counts, file = '~/Data_Cyclistic_Case_Study_1/avg_ride_length.csv')
+```
+```{r}
+long_counts <- aggregate(long_trips$ride_length ~ long_trips$member_casual + long_trips$day_of_week, FUN = length)
+write.csv(long_counts, file = '~/Data_Cyclistic_Case_Study_1/long_ride_length.csv')
+```
+```{r}
+ride_counts <- aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual + all_trips_v2$day_of_week, FUN = length)
+write.csv(ride_counts, file = '~/Data_Cyclistic_Case_Study_1/number_of_rides.csv')
+```
+
+
